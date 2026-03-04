@@ -1,0 +1,77 @@
+﻿<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kanban Produção (Matriz)</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>Kanban de Produção (Matriz)</h1>
+    <div class="header-actions">
+      <button id="newOpBtn" class="btn btn-primary">+ Nova OP</button>
+      <button id="newColBtn" class="btn">+ Novo funcionário</button>
+      <button id="resetBtn" class="btn btn-danger">Reset</button>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <div id="board"></div>
+  </main>
+
+  <div id="toast" class="toast" aria-live="polite"></div>
+
+  <dialog id="opDialog" class="dialog">
+    <form id="opForm" method="dialog" class="dialog-form">
+      <h2 id="opDialogTitle">Nova OP</h2>
+
+      <label>
+        Código/Número da OP
+        <input type="text" id="opCode" required maxlength="20" />
+      </label>
+
+      <label>
+        Nome/Título da OP
+        <input type="text" id="opTitle" required maxlength="120" />
+      </label>
+
+      <label>
+        Peça
+        <input type="text" id="opPiece" required maxlength="120" />
+      </label>
+
+      <label>
+        Responsável
+        <select id="opColumn" required></select>
+      </label>
+
+      <label>
+        Status inicial
+        <select id="opStatus" required></select>
+      </label>
+
+      <div class="dialog-actions">
+        <button type="button" id="cancelOpBtn" class="btn">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="saveOpBtn">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="colDialog" class="dialog">
+    <form id="colForm" method="dialog" class="dialog-form">
+      <h2>Novo funcionário</h2>
+      <label>
+        Nome
+        <input type="text" id="colName" required maxlength="40" />
+      </label>
+      <div class="dialog-actions">
+        <button type="button" id="cancelColBtn" class="btn">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Adicionar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
