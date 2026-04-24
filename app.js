@@ -7,7 +7,7 @@ const STATUSES = [
   { key: "fazer", label: "Fazer", colorClass: "status-fazer" },
   { key: "fazendo", label: "Fazendo", colorClass: "status-fazendo" },
   { key: "parado", label: "Parado", colorClass: "status-parado" },
-  { key: "feito", label: "Feito", colorClass: "status-feito" }
+  { key: "feito", label: "Concluído", colorClass: "status-feito" }
 ];
 
 const THIRD_PARTY_KEY = "terceiros";
@@ -61,9 +61,21 @@ let editingOpId = null;
 let draggedOpId = null;
 let toastTimeout = null;
 let saveQueue = Promise.resolve();
+let filters = {
+  employeeKey: "",
+  statusKey: "",
+  code: ""
+};
 
 const board = document.getElementById("board");
 const toast = document.getElementById("toast");
+const toggleFiltersBtn = document.getElementById("toggleFiltersBtn");
+const filtersBar = document.querySelector(".filters-bar");
+const filterEmployee = document.getElementById("filterEmployee");
+const filterStatus = document.getElementById("filterStatus");
+const filterCode = document.getElementById("filterCode");
+const clearFiltersBtn = document.getElementById("clearFiltersBtn");
+const filterSummary = document.getElementById("filterSummary");
 const opDialog = document.getElementById("opDialog");
 const opDialogTitle = document.getElementById("opDialogTitle");
 const opForm = document.getElementById("opForm");
@@ -83,6 +95,11 @@ document.getElementById("newColBtn").addEventListener("click", () => colDialog.s
 document.getElementById("resetBtn").addEventListener("click", resetBoard);
 document.getElementById("cancelOpBtn").addEventListener("click", () => opDialog.close());
 document.getElementById("cancelColBtn").addEventListener("click", () => colDialog.close());
+toggleFiltersBtn.addEventListener("click", toggleFilters);
+filterEmployee.addEventListener("change", onFilterChange);
+filterStatus.addEventListener("change", onFilterChange);
+filterCode.addEventListener("input", onFilterChange);
+clearFiltersBtn.addEventListener("click", clearFilters);
 
 opForm.addEventListener("submit", onSubmitOpForm);
 colForm.addEventListener("submit", onSubmitColumnForm);
@@ -91,6 +108,7 @@ init();
 
 async function init() {
   await loadStateFromCloud();
+  renderFilterOptions();
   renderBoard();
 }
 
@@ -196,6 +214,104 @@ function showToast(message) {
   toast.classList.add("show");
   if (toastTimeout) clearTimeout(toastTimeout);
   toastTimeout = setTimeout(() => toast.classList.remove("show"), 2600);
+}
+
+function toggleFilters() {
+  const isCollapsed = filtersBar.classList.toggle("is-collapsed");
+  toggleFiltersBtn.setAttribute("aria-expanded", String(!isCollapsed));
+}
+
+function renderFilterOptions() {
+  const selectedEmployee = filters.employeeKey;
+  const selectedStatus = filters.statusKey;
+
+  filterEmployee.replaceChildren(createOption("", "Todos"));
+  columns.forEach((column) => {
+    filterEmployee.appendChild(createOption(column.key, column.name));
+  });
+
+  filterStatus.replaceChildren(createOption("", "Todos"));
+  STATUSES.forEach((status) => {
+    filterStatus.appendChild(createOption(status.key, status.label));
+  });
+
+  filters.employeeKey = columns.some((column) => column.key === selectedEmployee)
+    ? selectedEmployee
+    : "";
+  filters.statusKey = STATUSES.some((status) => status.key === selectedStatus) ? selectedStatus : "";
+
+  filterEmployee.value = filters.employeeKey;
+  filterStatus.value = filters.statusKey;
+  filterCode.value = filters.code;
+}
+
+function createOption(value, label) {
+  const option = document.createElement("option");
+  option.value = value;
+  option.textContent = label;
+  return option;
+}
+
+function onFilterChange() {
+  filters = {
+    employeeKey: filterEmployee.value,
+    statusKey: filterStatus.value,
+    code: filterCode.value.trim()
+  };
+  renderBoard();
+}
+
+function clearFilters() {
+  filters = {
+    employeeKey: "",
+    statusKey: "",
+    code: ""
+  };
+  filterEmployee.value = "";
+  filterStatus.value = "";
+  filterCode.value = "";
+  renderBoard();
+}
+
+function getVisibleColumns() {
+  if (!filters.employeeKey) return columns;
+  return columns.filter((column) => column.key === filters.employeeKey);
+}
+
+function getVisibleStatuses() {
+  if (!filters.statusKey) return STATUSES;
+  return STATUSES.filter((status) => status.key === filters.statusKey);
+}
+
+function opMatchesCodeFilter(op) {
+  if (!filters.code) return true;
+  return op.code.toLowerCase().includes(filters.code.toLowerCase());
+}
+
+function getFilteredOps() {
+  return ops.filter((op) => {
+    const matchesEmployee = !filters.employeeKey || op.columnKey === filters.employeeKey;
+    const matchesStatus = !filters.statusKey || op.statusKey === filters.statusKey;
+    return matchesEmployee && matchesStatus && opMatchesCodeFilter(op);
+  });
+}
+
+function updateFilterSummary() {
+  const activeFilters = [];
+  const employee = columns.find((column) => column.key === filters.employeeKey);
+  const status = STATUSES.find((item) => item.key === filters.statusKey);
+  const visibleCount = getFilteredOps().length;
+
+  if (employee) activeFilters.push(`Funcionário: ${employee.name}`);
+  if (status) activeFilters.push(`Status: ${status.label}`);
+  if (filters.code) activeFilters.push(`OP: ${filters.code}`);
+
+  if (activeFilters.length === 0) {
+    filterSummary.textContent = `Mostrando todas as OPs (${ops.length}).`;
+    return;
+  }
+
+  filterSummary.textContent = `${visibleCount} OP(s) encontrada(s) com ${activeFilters.join(" | ")}.`;
 }
 
 function canPlaceOp(opId, targetColumnKey, targetStatusKey) {
@@ -315,6 +431,7 @@ function onSubmitColumnForm(event) {
 
   colDialog.close();
   colForm.reset();
+  renderFilterOptions();
   renderBoard();
   queuePersistState();
 }
@@ -332,6 +449,7 @@ function deleteColumn(columnKey) {
   if (!window.confirm(`Excluir a coluna ${column.name}?`)) return;
 
   columns = columns.filter((col) => col.key !== columnKey);
+  renderFilterOptions();
   renderBoard();
   queuePersistState();
 }
@@ -369,11 +487,16 @@ function resetBoard() {
   if (!window.confirm("Resetar o quadro para os dados iniciais?")) return;
   columns = structuredClone(INITIAL_COLUMNS);
   ops = structuredClone(INITIAL_OPS);
+  renderFilterOptions();
   renderBoard();
   queuePersistState();
 }
 
 function renderBoard() {
+  updateFilterSummary();
+
+  const visibleColumns = getVisibleColumns();
+  const visibleStatuses = getVisibleStatuses();
   const tableWrap = document.createElement("div");
   tableWrap.className = "board-table-wrap";
 
@@ -388,7 +511,7 @@ function renderBoard() {
   statusTh.textContent = "Status \\ Responsável";
   headRow.appendChild(statusTh);
 
-  columns.forEach((column) => {
+  visibleColumns.forEach((column) => {
     const th = document.createElement("th");
     th.className = "col-header";
 
@@ -417,7 +540,7 @@ function renderBoard() {
 
   const tbody = document.createElement("tbody");
 
-  STATUSES.forEach((status) => {
+  visibleStatuses.forEach((status) => {
     const row = document.createElement("tr");
 
     const statusCell = document.createElement("td");
@@ -425,7 +548,7 @@ function renderBoard() {
     statusCell.textContent = status.label;
     row.appendChild(statusCell);
 
-    columns.forEach((column) => {
+    visibleColumns.forEach((column) => {
       const cell = document.createElement("td");
 
       const pocket = document.createElement("div");
@@ -433,7 +556,7 @@ function renderBoard() {
       pocket.dataset.columnKey = column.key;
       pocket.dataset.statusKey = status.key;
 
-      const cards = getOpsInCell(column.key, status.key);
+      const cards = getOpsInCell(column.key, status.key).filter(opMatchesCodeFilter);
 
       const head = document.createElement("div");
       head.className = "pocket-head";
